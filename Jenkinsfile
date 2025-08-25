@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        FUNCTION_NAME = 'hello-world-lambda'
+        FUNCTION_NAME = 'hey-world-demo'
         REGION = 'us-east-1'
         SONAR_PROJECT_KEY = "aws-lambda"
         SONAR_ORG = "your-org"
