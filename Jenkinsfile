@@ -16,14 +16,21 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: "${params.GIT_BRANCH}", url: 'https://github.com/rsync-cloud/aws-lambda.git'
+                withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                    sh '''
+                      rm -rf aws-lambda
+                      git clone -b ${GIT_BRANCH} https://${GIT_USER}:${GIT_TOKEN}@github.com/rsync-cloud/aws-lambda.git
+                      cd aws-lambda
+                      ls -la
+                    '''
+                }
             }
         }
 
         stage('Install Dependencies') {
             steps {
                 sh '''
-                  cd hello-world
+                  cd aws-lambda/hello-world
                   pip install -r requirements.txt -t .
                 '''
             }
@@ -32,7 +39,7 @@ pipeline {
         stage('Package Lambda') {
             steps {
                 sh '''
-                  cd hello-world
+                  cd aws-lambda/hello-world
                   zip -r9 ../lambda_package.zip .
                 '''
             }
@@ -72,6 +79,7 @@ pipeline {
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: awsCredId]]) {
                         sh '''
                           export AWS_DEFAULT_REGION=${REGION}
+                          cd aws-lambda
                           aws lambda update-function-code \
                             --function-name ${FUNCTION_NAME} \
                             --zip-file fileb://lambda_package.zip
@@ -124,4 +132,3 @@ pipeline {
         }
     }
 }
-
