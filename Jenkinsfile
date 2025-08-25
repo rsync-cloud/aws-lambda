@@ -14,12 +14,15 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
                     sh '''
                       rm -rf aws-lambda
-                      git clone -b ${GIT_BRANCH} https://${GIT_USER}:${GIT_TOKEN}@github.com/rsync-cloud/aws-lambda.git
+                      BRANCH_NAME=${GIT_BRANCH#origin/}
+                      echo "Cloning branch: $BRANCH_NAME"
+                      git clone -b $BRANCH_NAME https://${GIT_USER}:${GIT_TOKEN}@github.com/rsync-cloud/aws-lambda.git
                       cd aws-lambda
                       ls -la
                     '''
