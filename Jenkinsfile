@@ -75,13 +75,13 @@ pipeline {
 
                     if (params.ENV == 'dev') {
                         awsCredId = 'aws-cred-dev'
-                        execRole = 'lambda_exec_role_dev'
+                        execRole = 'arn:aws:iam::529088259986:role/lambda_exec_role_dev'
                     } else if (params.ENV == 'stage') {
                         awsCredId = 'aws-cred-stage'
-                        execRole = 'lambda_exec_role_stage'
+                        execRole = 'arn:aws:iam::529088259986:role/lambda_exec_role_stage'
                     } else if (params.ENV == 'prod') {
                         awsCredId = 'aws-cred-prod'
-                        execRole = 'lambda_exec_role_prod'
+                        execRole = 'arn:aws:iam::529088259986:role/lambda_exec_role_prod'
                     }
 
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: awsCredId]]) {
@@ -97,7 +97,7 @@ pipeline {
                           # Ensure execution role is correct per environment
                           aws lambda update-function-configuration \
                             --function-name ${FUNCTION_NAME} \
-                            --role arn:aws:iam::\$(aws sts get-caller-identity --query Account --output text):role/${execRole}
+                            --role ${execRole}
                         """
                     }
                 }
