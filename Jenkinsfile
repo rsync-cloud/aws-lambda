@@ -91,16 +91,21 @@ pipeline {
                           FUNCTION_NAME="${BASE_FUNCTION_NAME}-${ENV}"
                           cd aws-lambda
 
-                          # Create Lambda function if it doesn't exist
-                          aws lambda get-function --function-name $FUNCTION_NAME || \
-                          aws lambda create-function \
-                            --function-name $FUNCTION_NAME \
-                            --runtime python3.13 \
-                            --role ''' + lambdaRole + ''' \
-                            --handler hello-world.lambda_function.lambda_handler \
-                            --zip-file fileb://lambda_package.zip
+                          # Check if function exists
+                          if ! aws lambda get-function --function-name $FUNCTION_NAME > /dev/null 2>&1; then
+                            echo "Creating new Lambda function: $FUNCTION_NAME"
+                            aws lambda create-function \
+                              --function-name $FUNCTION_NAME \
+                              --runtime python3.13 \
+                              --role ''' + lambdaRole + ''' \
+                              --handler hello-world.lambda_function.lambda_handler \
+                              --zip-file fileb://lambda_package.zip
 
-                          # Update Lambda code
+                            echo "Waiting for Lambda to become active..."
+                            aws lambda wait function-active --function-name $FUNCTION_NAME
+                          fi
+
+                          # Update Lambda code (safe after wait)
                           aws lambda update-function-code \
                             --function-name $FUNCTION_NAME \
                             --zip-file fileb://lambda_package.zip
