@@ -94,6 +94,9 @@ pipeline {
                             --function-name ${FUNCTION_NAME} \
                             --zip-file fileb://lambda_package.zip
 
+                          # Wait until update is complete
+                          aws lambda wait function-updated --function-name ${FUNCTION_NAME}
+
                           # Ensure execution role is correct per environment
                           aws lambda update-function-configuration \
                             --function-name ${FUNCTION_NAME} \
@@ -121,6 +124,9 @@ pipeline {
                           export AWS_DEFAULT_REGION=${REGION}
                           RULE_NAME="hello-world-schedule"
                           SCHEDULE="rate(5 minutes)"
+
+                          # Ensure Lambda is ready before attaching schedule
+                          aws lambda wait function-updated --function-name ${FUNCTION_NAME}
 
                           # Create or update CloudWatch rule
                           aws events put-rule \
