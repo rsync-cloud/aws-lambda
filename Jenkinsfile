@@ -85,7 +85,7 @@ pipeline {
                     }
 
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: awsCredId]]) {
-                        sh '''
+                        sh """
                           export AWS_DEFAULT_REGION=${REGION}
                           cd aws-lambda
 
@@ -94,11 +94,11 @@ pipeline {
                             --function-name ${FUNCTION_NAME} \
                             --zip-file fileb://lambda_package.zip
 
-                          # Ensure execution role is correct
+                          # Ensure execution role is correct per environment
                           aws lambda update-function-configuration \
                             --function-name ${FUNCTION_NAME} \
-                            --role arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/''' + execRole + '''
-                        '''
+                            --role arn:aws:iam::\$(aws sts get-caller-identity --query Account --output text):role/${execRole}
+                        """
                     }
                 }
             }
