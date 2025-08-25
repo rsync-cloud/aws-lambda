@@ -71,22 +71,38 @@ pipeline {
             steps {
                 script {
                     def awsCredId = ''
+                    def lambdaRole = ''
+                    
                     if (params.ENV == 'dev') {
                         awsCredId = 'aws-cred-dev'
+                        lambdaRole = 'arn:aws:iam::529088259986:role/lambda_exec_role_dev'
                     } else if (params.ENV == 'stage') {
                         awsCredId = 'aws-cred-stage'
+                        lambdaRole = 'arn:aws:iam::529088259986:role/lambda_exec_role_stage'
                     } else if (params.ENV == 'prod') {
                         awsCredId = 'aws-cred-prod'
+                        lambdaRole = 'arn:aws:iam::529088259986:role/lambda_exec_role_prod'
                     }
 
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: awsCredId]]) {
-                        sh '''
+                        sh """
                           export AWS_DEFAULT_REGION=${REGION}
                           cd aws-lambda
+
+                          # Create Lambda function if it doesn't exist
+                          aws lambda get-function --function-name ${FUNCTION_NAME} || \
+                          aws lambda create-function \
+                            --function-name ${FUNCTION_NAME} \
+                            --runtime python3.13 \
+                            --role ${lambdaRole} \
+                            --handler hello-world.lambda_function.lambda_handler \
+                            --zip-file fileb://lambda_package.zip
+
+                          # Update Lambda code
                           aws lambda update-function-code \
                             --function-name ${FUNCTION_NAME} \
                             --zip-file fileb://lambda_package.zip
-                        '''
+                        """
                     }
                 }
             }
