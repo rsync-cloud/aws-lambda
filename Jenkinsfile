@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        FUNCTION_NAME = 'hey-world-demo'
+        BASE_FUNCTION_NAME = 'hey-world-demo'
         REGION = 'us-east-1'
         SONAR_PROJECT_KEY = "aws-lambda"
         SONAR_ORG = "your-org"
@@ -72,7 +72,8 @@ pipeline {
                 script {
                     def awsCredId = ''
                     def lambdaRole = ''
-                    
+                    def functionName = "${env.BASE_FUNCTION_NAME}-${params.ENV}"
+
                     if (params.ENV == 'dev') {
                         awsCredId = 'aws-cred-dev'
                         lambdaRole = 'arn:aws:iam::529088259986:role/lambda_exec_role_dev'
@@ -90,9 +91,9 @@ pipeline {
                           cd aws-lambda
 
                           # Create Lambda function if it doesn't exist
-                          aws lambda get-function --function-name ${FUNCTION_NAME} || \
+                          aws lambda get-function --function-name ${functionName} || \
                           aws lambda create-function \
-                            --function-name ${FUNCTION_NAME} \
+                            --function-name ${functionName} \
                             --runtime python3.13 \
                             --role ${lambdaRole} \
                             --handler hello-world.lambda_function.lambda_handler \
@@ -100,7 +101,7 @@ pipeline {
 
                           # Update Lambda code
                           aws lambda update-function-code \
-                            --function-name ${FUNCTION_NAME} \
+                            --function-name ${functionName} \
                             --zip-file fileb://lambda_package.zip
                         """
                     }
@@ -112,6 +113,9 @@ pipeline {
             steps {
                 script {
                     def awsCredId = ''
+                    def functionName = "${env.BASE_FUNCTION_NAME}-${params.ENV}"
+                    def ruleName = "hello-world-schedule-${params.ENV}"
+
                     if (params.ENV == 'dev') {
                         awsCredId = 'aws-cred-dev'
                     } else if (params.ENV == 'stage') {
@@ -121,9 +125,9 @@ pipeline {
                     }
 
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: awsCredId]]) {
-                        sh '''
+                        sh """
                           export AWS_DEFAULT_REGION=${REGION}
-                          RULE_NAME="hello-world-schedule"
+                          RULE_NAME="${ruleName}"
                           SCHEDULE="rate(5 minutes)"
 
                           # Create or update CloudWatch rule
@@ -135,16 +139,16 @@ pipeline {
                           # Add Lambda as target of the rule
                           aws events put-targets \
                             --rule $RULE_NAME \
-                            --targets "Id"="1","Arn"=$(aws lambda get-function --function-name ${FUNCTION_NAME} --query 'Configuration.FunctionArn' --output text)
+                            --targets "Id"="1","Arn"=$(aws lambda get-function --function-name ${functionName} --query 'Configuration.FunctionArn' --output text)
 
                           # Grant permission for Events to invoke Lambda
                           aws lambda add-permission \
-                            --function-name ${FUNCTION_NAME} \
+                            --function-name ${functionName} \
                             --statement-id "cw-invoke" \
                             --action 'lambda:InvokeFunction' \
                             --principal events.amazonaws.com \
                             --source-arn $(aws events describe-rule --name $RULE_NAME --query 'Arn' --output text) || true
-                        '''
+                        """
                     }
                 }
             }
