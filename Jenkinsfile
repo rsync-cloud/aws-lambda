@@ -25,20 +25,23 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh 'pip install -r requirements.txt -t .'
+                dir('hello-world') {
+                    sh 'pip install -r requirements.txt -t .'
+                }
             }
         }
 
         stage('Zip Lambda Package') {
             steps {
-                sh 'zip -r9 lambda_function.zip .'
+                dir('hello-world') {
+                    sh 'zip -r9 ../lambda_function.zip .'
+                }
             }
         }
 
         stage('Deploy Lambda') {
             steps {
                 script {
-                    // Decide role based on ENV param
                     def roleArn = ""
                     if (params.ENV == "dev") {
                         roleArn = env.DEV_ROLE
@@ -61,6 +64,21 @@ pipeline {
                         || aws lambda update-function-code \
                           --function-name ${FUNCTION_NAME}-${params.ENV} \
                           --zip-file fileb://lambda_function.zip \
+                          --region ${REGION}
+                    """
+                }
+            }
+        }
+
+        stage('Setup CloudWatch Schedule') {
+            steps {
+                script {
+                    def ruleName = "${FUNCTION_NAME}-${params.ENV}-schedule"
+                    sh """
+                        aws events put-rule \
+                          --name ${ruleName} \
+                          --schedule-expression "rate(5 minutes)" \
+                          --state ENABLED \
                           --region ${REGION}
                     """
                 }
