@@ -86,24 +86,25 @@ pipeline {
                     }
 
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: awsCredId]]) {
-                        sh """
-                          export AWS_DEFAULT_REGION=${REGION}
+                        sh '''
+                          export AWS_DEFAULT_REGION=$REGION
+                          FUNCTION_NAME="${BASE_FUNCTION_NAME}-${ENV}"
                           cd aws-lambda
 
                           # Create Lambda function if it doesn't exist
-                          aws lambda get-function --function-name ${functionName} || \
+                          aws lambda get-function --function-name $FUNCTION_NAME || \
                           aws lambda create-function \
-                            --function-name ${functionName} \
+                            --function-name $FUNCTION_NAME \
                             --runtime python3.13 \
-                            --role ${lambdaRole} \
+                            --role ''' + lambdaRole + ''' \
                             --handler hello-world.lambda_function.lambda_handler \
                             --zip-file fileb://lambda_package.zip
 
                           # Update Lambda code
                           aws lambda update-function-code \
-                            --function-name ${functionName} \
+                            --function-name $FUNCTION_NAME \
                             --zip-file fileb://lambda_package.zip
-                        """
+                        '''
                     }
                 }
             }
@@ -113,8 +114,6 @@ pipeline {
             steps {
                 script {
                     def awsCredId = ''
-                    def functionName = "${env.BASE_FUNCTION_NAME}-${params.ENV}"
-                    def ruleName = "hello-world-schedule-${params.ENV}"
 
                     if (params.ENV == 'dev') {
                         awsCredId = 'aws-cred-dev'
@@ -125,9 +124,10 @@ pipeline {
                     }
 
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: awsCredId]]) {
-                        sh """
-                          export AWS_DEFAULT_REGION=${REGION}
-                          RULE_NAME="${ruleName}"
+                        sh '''
+                          export AWS_DEFAULT_REGION=$REGION
+                          FUNCTION_NAME="${BASE_FUNCTION_NAME}-${ENV}"
+                          RULE_NAME="hello-world-schedule-${ENV}"
                           SCHEDULE="rate(5 minutes)"
 
                           # Create or update CloudWatch rule
@@ -136,19 +136,25 @@ pipeline {
                             --schedule-expression "$SCHEDULE" \
                             --state ENABLED
 
+                          # Resolve Lambda ARN
+                          FUNCTION_ARN=$(aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.FunctionArn' --output text)
+
                           # Add Lambda as target of the rule
                           aws events put-targets \
                             --rule $RULE_NAME \
-                            --targets "Id"="1","Arn"=$(aws lambda get-function --function-name ${functionName} --query 'Configuration.FunctionArn' --output text)
+                            --targets "Id"="1","Arn"=$FUNCTION_ARN
+
+                          # Resolve Rule ARN
+                          SOURCE_ARN=$(aws events describe-rule --name $RULE_NAME --query 'Arn' --output text)
 
                           # Grant permission for Events to invoke Lambda
                           aws lambda add-permission \
-                            --function-name ${functionName} \
+                            --function-name $FUNCTION_NAME \
                             --statement-id "cw-invoke" \
                             --action 'lambda:InvokeFunction' \
                             --principal events.amazonaws.com \
-                            --source-arn $(aws events describe-rule --name $RULE_NAME --query 'Arn' --output text) || true
-                        """
+                            --source-arn $SOURCE_ARN || true
+                        '''
                     }
                 }
             }
