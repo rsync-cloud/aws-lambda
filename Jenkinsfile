@@ -71,21 +71,33 @@ pipeline {
             steps {
                 script {
                     def awsCredId = ''
+                    def execRole = ''
+
                     if (params.ENV == 'dev') {
                         awsCredId = 'aws-cred-dev'
+                        execRole = 'lambda_exec_role_dev'
                     } else if (params.ENV == 'stage') {
                         awsCredId = 'aws-cred-stage'
+                        execRole = 'lambda_exec_role_stage'
                     } else if (params.ENV == 'prod') {
                         awsCredId = 'aws-cred-prod'
+                        execRole = 'lambda_exec_role_prod'
                     }
 
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: awsCredId]]) {
                         sh '''
                           export AWS_DEFAULT_REGION=${REGION}
                           cd aws-lambda
+
+                          # Update code
                           aws lambda update-function-code \
                             --function-name ${FUNCTION_NAME} \
                             --zip-file fileb://lambda_package.zip
+
+                          # Ensure execution role is correct
+                          aws lambda update-function-configuration \
+                            --function-name ${FUNCTION_NAME} \
+                            --role arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/''' + execRole + '''
                         '''
                     }
                 }
